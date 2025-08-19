@@ -1,1 +1,0 @@
-obj-$(CONFIG_JIIOV_FP)  += jiiov_platform.o jiiov_netlink.o custom.o
