@@ -48,11 +48,8 @@ __NR_bpf = {  # pylint: disable=invalid-name
 
 # After ACK merge of 5.10.168 is when support for this was backported from
 # upstream Linux 5.14 and was merged into ACK android{12,13}-5.10 branches.
-#   ACK android12-5.10 was >= 5.10.168 without this support only for ~4.5 hours
-#   ACK android13-4.10 was >= 5.10.168 without this support only for ~25 hours
-# as such we can >= 5.10.168 instead of > 5.10.168
-# Additionally require support to be backported to any 5.10+ non-GKI/GSI kernel.
-HAVE_SO_NETNS_COOKIE = net_test.LINUX_VERSION >= (5, 10, 168) or net_test.NonGXI(5, 10)
+# Require support to be backported to any 5.10+ kernel.
+HAVE_SO_NETNS_COOKIE = net_test.LINUX_VERSION >= (5, 10, 0)
 
 # Note: This is *not* correct for parisc & sparc architectures
 SO_NETNS_COOKIE = 71
@@ -213,7 +210,6 @@ BpfInsn = cstruct.Struct("bpf_insn", "=BBhi", "code dst_src_reg off imm")
 # pylint: enable=invalid-name
 
 libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
-HAVE_EBPF_5_4 = net_test.LINUX_VERSION >= (5, 4, 0)
 
 # set memlock resource 1 GiB
 resource.setrlimit(resource.RLIMIT_MEMLOCK, (1073741824, 1073741824))
