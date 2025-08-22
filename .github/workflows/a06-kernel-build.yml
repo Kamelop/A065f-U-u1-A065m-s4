@@ -123,6 +123,7 @@ jobs:
 
       - name: Build Kernel
         run: |
+           cd kernel
            ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
