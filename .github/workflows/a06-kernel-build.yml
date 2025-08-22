@@ -49,17 +49,6 @@ jobs:
           echo "PATH=$GITHUB_WORKSPACE/bin:$PATH" >> $GITHUB_ENV
 
       # ------------------------
-      # Cache Kernel repo
-      # ------------------------
-      - name: Cache Kernel repo
-        uses: actions/cache@v3
-        with:
-          path: kernel_build/.repo
-          key: kernel-repo-${{ github.ref }}
-          restore-keys: |
-            kernel-repo-
-
-      # ------------------------
       # Kernel repo initialization and sync
       # ------------------------
       - name: Kernel repo initialization and sync
@@ -68,13 +57,11 @@ jobs:
           mkdir -p kernel_build
           cd kernel_build
 
-          # Non-interactive repo init (skip if cached)
           if [ ! -d ".repo" ]; then
             repo init -u https://android.googlesource.com/kernel/manifest \
               -b common-android15-6.6 --depth=1 --quiet --no-repo-verify
           fi
 
-          # Repo sync with timeout and retries
           MAX_RETRIES=3
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Kernel repo sync attempt $i..."
@@ -89,6 +76,17 @@ jobs:
               fi
             fi
           done
+
+      # ------------------------
+      # Cache Kernel repo after fetch
+      # ------------------------
+      - name: Cache Kernel repo
+        uses: actions/cache@v3
+        with:
+          path: kernel_build/.repo
+          key: kernel-repo-${{ github.ref }}
+          restore-keys: |
+            kernel-repo-
 
       # ------------------------
       # Fetch Toolchains
@@ -136,9 +134,9 @@ jobs:
       - name: Set Build Environment and Export Target Config
         run: |
           export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export BUILD_CONFIG="../out/target/product/a06/obj/KERNEL_OBJ/build.config"
-          export OUT_DIR="../out/target/product/a06/obj/KLEAF_OBJ"
-          export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist"
+          export BUILD_CONFIG="$GITHUB_WORKSPACE/out/target/product/a06/obj/KERNEL_OBJ/build.config"
+          export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
+          export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
           export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
           export PROJECT="mgk_64_k66"
 
@@ -158,6 +156,14 @@ jobs:
       # ------------------------
       - name: Build Kernel
         run: |
+          BUILD_CONFIG="$GITHUB_WORKSPACE/out/target/product/a06/obj/KERNEL_OBJ/build.config"
+          if [ -f "$BUILD_CONFIG" ]; then
+              source "$BUILD_CONFIG"
+          else
+              echo "Error: build config not found at $BUILD_CONFIG"
+              exit 1
+          fi
+
           cd kernel
           ./kernel_device_modules-6.6/build.sh
 
