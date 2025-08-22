@@ -1,17 +1,18 @@
 name: A06 Kernel Build
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      USE_CLANG_18:
-        description: 'Check to use Clang 18 instead of Clang 12'
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      CLANG_DIR: toolchains/clang
+      GCC_DIR: toolchains/gnu
 
     steps:
       - name: Checkout repository
@@ -84,29 +85,26 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/toolchains
           cd $GITHUB_WORKSPACE/toolchains
 
-          if [ "${{ github.event.inputs.USE_CLANG_18 }}" = "true" ]; then
+          # Use Clang 18 by default
+          if [ ! -d "$CLANG_DIR" ]; then
             echo "Fetching Clang 18..."
-            [ -d clang ] && rm -rf clang
-            mkdir clang && cd clang
+            mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
             wget -q -O clang18.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
             tar -xf clang18.tar.gz
             rm clang18.tar.gz
             cd ..
-          else
-            echo "Fetching Clang 12..."
-            [ -d clang ] && rm -rf clang
-            git clone --depth=1 https://github.com/rsuntk/toolchains.git -b clang-12 clang
           fi
 
-          [ -d gnu ] && rm -rf gnu
-          git clone --depth=1 https://github.com/rsuntk/toolchains.git -b gcc-6.4 gnu
+          if [ ! -d "$GCC_DIR" ]; then
+            git clone --depth=1 https://github.com/rsuntk/toolchains.git -b gcc-6.4 "$GCC_DIR"
+          fi
 
-      - name: Cache Toolchains after fetch
+      - name: Cache Toolchains
         uses: actions/cache@v3
         with:
           path: |
-            toolchains/clang
-            toolchains/gnu
+            $CLANG_DIR
+            $GCC_DIR
           key: toolchains-${{ github.ref }}
           restore-keys: |
             toolchains-
@@ -114,12 +112,13 @@ jobs:
       - name: Set Build Environment and Export Target Config
         run: |
           export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"  # generated inside kernel/
           export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
           export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
           export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
           export PROJECT="mgk_64_k66"
           export MODE="${GITHUB_RUNNER_NAME:-ci}"
+
+          mkdir -p "$OUT_DIR" "$DIST_DIR"
 
           cd kernel
           python $DEVICE_MODULES_DIR/scripts/gen_build_config.py \
@@ -127,7 +126,7 @@ jobs:
             --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
             --kernel-build-config-overlays "" \
             -m "$MODE" \
-            -o build.config  # <-- generate directly inside kernel/
+            -o build.config
 
       - name: Build Kernel
         run: |
