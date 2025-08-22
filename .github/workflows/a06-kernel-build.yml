@@ -73,7 +73,7 @@ jobs:
           done
 
       - name: Cache Kernel repo after fetch
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: kernel_build/.repo
           key: kernel-repo-${{ github.ref }}
