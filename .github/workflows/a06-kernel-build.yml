@@ -119,6 +119,7 @@ jobs:
          export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist" 
          export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config" 
          export PROJECT="mgk_64_k66" 
+         export MODE="${GITHUB_ACTOR}"
 
       - name: Build Kernel
         run: |
