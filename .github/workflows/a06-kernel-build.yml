@@ -36,31 +36,36 @@ jobs:
           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
 
       # ------------------------
+      # Prepare repo binary
+      # ------------------------
+      - name: Prepare repo binary
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > $GITHUB_WORKSPACE/bin/repo
+          chmod a+x $GITHUB_WORKSPACE/bin/repo
+          echo "PATH=$GITHUB_WORKSPACE/bin:$PATH" >> $GITHUB_ENV
+
+      # ------------------------
       # Kernel repo caching
       # ------------------------
       - name: Cache Kernel repo
         uses: actions/cache@v3
         with:
           path: kernel_build/.repo
-          key: kernel-repo-${{ github.sha }}
+          key: kernel-repo-${{ github.ref_name }}
           restore-keys: |
             kernel-repo-
 
       - name: Kernel repo initialization and sync
         run: |
-          mkdir -p $GITHUB_WORKSPACE/bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > $GITHUB_WORKSPACE/bin/repo
-          chmod a+x $GITHUB_WORKSPACE/bin/repo
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
-          
           mkdir -p kernel_build
           cd kernel_build
 
-          # Non-interactive repo init (skip if already cached)
+          # Non-interactive repo init (skip if cached)
           if [ ! -d ".repo" ]; then
             repo init -u https://android.googlesource.com/kernel/manifest \
-              -b common-android15-6.6 \
-              --depth=1 --quiet --no-repo-verify
+              -b common-android15-6.6 --depth=1 --quiet --no-repo-verify
           fi
 
           # Repo sync with timeout and retries
@@ -86,12 +91,13 @@ jobs:
         uses: actions/cache@v3
         with:
           path: aosp/.repo
-          key: aosp-repo-${{ github.sha }}
+          key: aosp-repo-${{ github.ref_name }}
           restore-keys: |
             aosp-repo-
 
       - name: Sync AOSP toolchain directories
         run: |
+          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
           mkdir -p $GITHUB_WORKSPACE/aosp
           cd $GITHUB_WORKSPACE/aosp
 
