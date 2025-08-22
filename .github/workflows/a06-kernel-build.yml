@@ -105,8 +105,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            $GITHUB_WORKSPACE/toolchains/clang
-            $GITHUB_WORKSPACE/toolchains/gnu
+            toolchains/clang
+            toolchains/gnu
           key: toolchains-${{ github.ref }}
           restore-keys: |
             toolchains-
@@ -114,7 +114,7 @@ jobs:
       - name: Set Build Environment and Export Target Config
         run: |
           export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"  # now inside kernel/
+          export BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"  # generated inside kernel/
           export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
           export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
           export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
@@ -127,19 +127,18 @@ jobs:
             --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
             --kernel-build-config-overlays "" \
             -m "$MODE" \
-            -o "$BUILD_CONFIG"
+            -o build.config  # <-- generate directly inside kernel/
 
       - name: Build Kernel
         run: |
-          BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"
-          if [ -f "$BUILD_CONFIG" ]; then
-              source "$BUILD_CONFIG"
+          cd kernel
+          if [ -f build.config ]; then
+              source build.config
           else
-              echo "Error: build config not found at $BUILD_CONFIG"
+              echo "Error: build config not found at kernel/build.config"
               exit 1
           fi
 
-          cd kernel
           ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
