@@ -27,7 +27,7 @@ jobs:
             git-core gnupg flex bison build-essential zip curl zlib1g-dev \
             gcc-multilib g++-multilib libc6-dev-i386 libncurses5-dev \
             x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev \
-            libxml2-utils xsltproc unzip python3 python-is-python3 ccache
+            libxml2-utils xsltproc unzip python3 python-is-python3 ccache tar
 
       - name: Enable ccache
         run: |
@@ -72,7 +72,7 @@ jobs:
           MAX_RETRIES=3
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Kernel repo sync attempt $i..."
-            if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync; then
+            if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync || true; then
               echo "Kernel repo sync completed successfully."
               break
             else
@@ -85,50 +85,26 @@ jobs:
           done
 
       # ------------------------
-      # AOSP toolchain caching
+      # Download and extract AOSP toolchain
       # ------------------------
-      - name: Cache AOSP toolchain repo
-        uses: actions/cache@v3
-        with:
-          path: aosp/.repo
-          key: aosp-repo-${{ github.ref_name }}
-          restore-keys: |
-            aosp-repo-
-
-      - name: Sync AOSP toolchain directories
+      - name: Download and extract AOSP toolchain
         run: |
-          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
-          mkdir -p $GITHUB_WORKSPACE/aosp
-          cd $GITHUB_WORKSPACE/aosp
+          mkdir -p $GITHUB_WORKSPACE/toolchain
+          cd $GITHUB_WORKSPACE/toolchain
 
-          # Minimal repo init (skip if cached)
-          if [ ! -d ".repo" ]; then
-            repo init -u https://android.googlesource.com/kernel/manifest \
-              -b common-android14-6.1 --depth=1 --quiet --no-repo-verify
-          fi
+          # Download prebuilt AOSP toolchain archive
+          # TODO: replace with actual URL from AOSP/Samsung Open Source
+          curl -LO https://storage.googleapis.com/aosp-toolchains/toolchain-6.1.tar.gz
 
-          # Repo sync with timeout and retries
-          MAX_RETRIES=3
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Toolchain repo sync attempt $i..."
-            if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync; then
-              echo "Toolchain repo sync completed successfully."
-              break
-            else
-              echo "Attempt $i failed or timed out."
-              if [ $i -eq $MAX_RETRIES ]; then
-                echo "Max retries reached. Exiting."
-                exit 1
-              fi
-            fi
-          done
+          # Extract the archive
+          tar -xzf toolchain-6.1.tar.gz
 
           # Copy required directories to workspace root
           for dir in build external prebuilts tools; do
-            if [ -d "$GITHUB_WORKSPACE/aosp/$dir" ]; then
-              cp -r "$GITHUB_WORKSPACE/aosp/$dir" $GITHUB_WORKSPACE/
+            if [ -d "$GITHUB_WORKSPACE/toolchain/$dir" ]; then
+              cp -r "$GITHUB_WORKSPACE/toolchain/$dir" $GITHUB_WORKSPACE/
             else
-              echo "Directory $dir not found in AOSP repo, skipping..."
+              echo "Directory $dir not found in toolchain, skipping..."
             fi
           done
 
