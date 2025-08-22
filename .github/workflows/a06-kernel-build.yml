@@ -35,16 +35,16 @@ jobs:
           ccache --max-size=10G
           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
 
-      - name: Install latest repo tool
+       - name: Install latest repo tool and initialize kernel repo
         run: |
+          # Install latest repo locally
           mkdir -p $GITHUB_WORKSPACE/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > $GITHUB_WORKSPACE/bin/repo
           chmod a+x $GITHUB_WORKSPACE/bin/repo
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
 
-      - name: Initialize kernel repo
-        run: |
-          mkdir kernel_build && cd kernel_build
+          # Initialize kernel repo
+          mkdir -p kernel_build && cd kernel_build
           repo init -u https://android.googlesource.com/kernel/manifest -b common-android15-6.6
           repo sync -j$(nproc)
 
