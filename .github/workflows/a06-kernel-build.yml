@@ -111,22 +111,14 @@ jobs:
 
       - name: Set Build Environment and Export Target Config
         run: |
-          export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
-          export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
-          export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
-          export PROJECT="mgk_64_k66"
-          export MODE="${GITHUB_RUNNER_NAME:-ci}"
-
-          mkdir -p "$OUT_DIR" "$DIST_DIR"
-
-          cd kernel
-          python $DEVICE_MODULES_DIR/scripts/gen_build_config.py \
-            --kernel-defconfig mediatek-bazel_defconfig \
-            --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
-            --kernel-build-config-overlays "" \
-            -m "$MODE" \
-            -o build.config
+         cd kernel 
+         python kernel_device_modules-6.6/scripts/gen_build_config.py --kernel-defconfig mediatek-bazel_defconfig --kernel-defconfig-overlays "mt6768_overlay.config o8.config" --kernel-build-config-overlays "" -m user -o ../out/target/product/a06/obj/KERNEL_OBJ/build.config
+         export DEVICE_MODULES_DIR="kernel_device_modules-6.6" 
+         export BUILD_CONFIG="../out/target/product/a06/obj/KERNEL_OBJ/build.config" 
+         export OUT_DIR="../out/target/product/a06/obj/KLEAF_OBJ" 
+         export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist" 
+         export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config" 
+         export PROJECT="mgk_64_k66" 
 
       - name: Build Kernel
         run: |
