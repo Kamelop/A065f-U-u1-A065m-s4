@@ -27,13 +27,20 @@ jobs:
             git-core gnupg flex bison build-essential zip curl zlib1g-dev \
             gcc-multilib g++-multilib libc6-dev-i386 libncurses5-dev \
             x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev \
-            libxml2-utils xsltproc unzip python3 python-is-python3 ccache repo
+            libxml2-utils xsltproc unzip python3 python-is-python3 ccache
 
       - name: Enable ccache
         run: |
           export PATH="/usr/lib/ccache:$PATH"
           ccache --max-size=10G
           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
+
+      - name: Install latest repo tool
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > $GITHUB_WORKSPACE/bin/repo
+          chmod a+x $GITHUB_WORKSPACE/bin/repo
+          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
 
       - name: Initialize kernel repo
         run: |
