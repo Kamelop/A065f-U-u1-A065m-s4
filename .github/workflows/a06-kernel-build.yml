@@ -123,15 +123,7 @@ jobs:
 
       - name: Build Kernel
         run: |
-          cd kernel
-          if [ -f build.config ]; then
-              source build.config
-          else
-              echo "Error: build config not found at kernel/build.config"
-              exit 1
-          fi
-
-          ./kernel_device_modules-6.6/build.sh
+           ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
         run: |
