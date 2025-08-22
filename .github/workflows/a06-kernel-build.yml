@@ -1,6 +1,12 @@
 name: A06 Kernel Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      CLANG_EIGHTEEN:
+        description: 'Use Clang 18 instead of Clang 12'
+        required: false
+        default: 'false'
   push:
     branches:
       - main
@@ -27,7 +33,7 @@ jobs:
             git-core gnupg flex bison build-essential zip curl zlib1g-dev \
             gcc-multilib g++-multilib libc6-dev-i386 libncurses5-dev \
             x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev \
-            libxml2-utils xsltproc unzip python3 python-is-python3 ccache tar
+            libxml2-utils xsltproc unzip python3 python-is-python3 ccache tar wget
 
       - name: Enable ccache
         run: |
@@ -85,28 +91,29 @@ jobs:
           done
 
       # ------------------------
-      # Download and extract AOSP toolchain
+      # Fetch Toolchains
       # ------------------------
-      - name: Download and extract AOSP toolchain
+      - name: Fetch toolchains
         run: |
-          mkdir -p $GITHUB_WORKSPACE/toolchain
-          cd $GITHUB_WORKSPACE/toolchain
+          mkdir -p $GITHUB_WORKSPACE/toolchains
+          cd $GITHUB_WORKSPACE/toolchains
 
-          # Download prebuilt AOSP toolchain archive
-          # TODO: replace with actual URL from AOSP/Samsung Open Source
-          curl -LO https://storage.googleapis.com/aosp-toolchains/toolchain-6.1.tar.gz
+          # CLANG
+          if [[ "${{ github.event.inputs.CLANG_EIGHTEEN }}" != "true" ]]; then
+            [ -d clang ] && rm -rf clang
+            git clone --depth=1 https://github.com/rsuntk/toolchains.git -b clang-12 clang
+          else
+            [ -d clang ] && rm -rf clang
+            mkdir clang && cd clang
+            wget -q -O clang18.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
+            tar -xf clang18.tar.gz
+            rm clang18.tar.gz
+            cd ..
+          fi
 
-          # Extract the archive
-          tar -xzf toolchain-6.1.tar.gz
-
-          # Copy required directories to workspace root
-          for dir in build external prebuilts tools; do
-            if [ -d "$GITHUB_WORKSPACE/toolchain/$dir" ]; then
-              cp -r "$GITHUB_WORKSPACE/toolchain/$dir" $GITHUB_WORKSPACE/
-            else
-              echo "Directory $dir not found in toolchain, skipping..."
-            fi
-          done
+          # GCC
+          [ -d gnu ] && rm -rf gnu
+          git clone --depth=1 https://github.com/rsuntk/toolchains.git -b gcc-6.4 gnu
 
       # ------------------------
       # Build environment setup
