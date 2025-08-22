@@ -52,8 +52,21 @@ jobs:
             --quiet \
             --no-repo-verify
 
-          # Non-interactive repo sync with timeout
-          timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync
+          # Non-interactive repo sync with timeout and retries
+          MAX_RETRIES=3
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Repo sync attempt $i..."
+            if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync; then
+              echo "Repo sync completed successfully."
+              break
+            else
+              echo "Repo sync attempt $i failed or timed out."
+              if [ $i -eq $MAX_RETRIES ]; then
+                echo "Max retries reached. Exiting."
+                exit 1
+              fi
+            fi
+          done
 
       - name: Copy required directories to root
         run: |
