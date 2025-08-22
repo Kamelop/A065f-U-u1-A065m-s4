@@ -38,9 +38,6 @@ jobs:
           ccache --max-size=10G
           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
 
-      # ------------------------
-      # Prepare repo binary
-      # ------------------------
       - name: Prepare repo binary
         run: |
           mkdir -p $GITHUB_WORKSPACE/bin
@@ -48,9 +45,6 @@ jobs:
           chmod a+x $GITHUB_WORKSPACE/bin/repo
           echo "PATH=$GITHUB_WORKSPACE/bin:$PATH" >> $GITHUB_ENV
 
-      # ------------------------
-      # Kernel repo initialization and sync
-      # ------------------------
       - name: Kernel repo initialization and sync
         run: |
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
@@ -77,10 +71,7 @@ jobs:
             fi
           done
 
-      # ------------------------
-      # Cache Kernel repo after fetch
-      # ------------------------
-      - name: Cache Kernel repo
+      - name: Cache Kernel repo after fetch
         uses: actions/cache@v3
         with:
           path: kernel_build/.repo
@@ -88,15 +79,11 @@ jobs:
           restore-keys: |
             kernel-repo-
 
-      # ------------------------
-      # Fetch Toolchains
-      # ------------------------
       - name: Fetch toolchains
         run: |
           mkdir -p $GITHUB_WORKSPACE/toolchains
           cd $GITHUB_WORKSPACE/toolchains
 
-          # CLANG
           if [ "${{ github.event.inputs.USE_CLANG_18 }}" = "true" ]; then
             echo "Fetching Clang 18..."
             [ -d clang ] && rm -rf clang
@@ -111,14 +98,10 @@ jobs:
             git clone --depth=1 https://github.com/rsuntk/toolchains.git -b clang-12 clang
           fi
 
-          # GCC
           [ -d gnu ] && rm -rf gnu
           git clone --depth=1 https://github.com/rsuntk/toolchains.git -b gcc-6.4 gnu
 
-      # ------------------------
-      # Cache Toolchains after fetch
-      # ------------------------
-      - name: Cache Toolchains
+      - name: Cache Toolchains after fetch
         uses: actions/cache@v3
         with:
           path: |
@@ -128,19 +111,14 @@ jobs:
           restore-keys: |
             toolchains-
 
-      # ------------------------
-      # Build environment setup
-      # ------------------------
       - name: Set Build Environment and Export Target Config
         run: |
           export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export BUILD_CONFIG="$GITHUB_WORKSPACE/out/target/product/a06/obj/KERNEL_OBJ/build.config"
+          export BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"  # now inside kernel/
           export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
           export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
           export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
           export PROJECT="mgk_64_k66"
-
-          # Ensure MODE is always valid
           export MODE="${GITHUB_RUNNER_NAME:-ci}"
 
           cd kernel
@@ -151,12 +129,9 @@ jobs:
             -m "$MODE" \
             -o "$BUILD_CONFIG"
 
-      # ------------------------
-      # Build kernel
-      # ------------------------
       - name: Build Kernel
         run: |
-          BUILD_CONFIG="$GITHUB_WORKSPACE/out/target/product/a06/obj/KERNEL_OBJ/build.config"
+          BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"
           if [ -f "$BUILD_CONFIG" ]; then
               source "$BUILD_CONFIG"
           else
