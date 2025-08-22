@@ -35,7 +35,18 @@ jobs:
           ccache --max-size=10G
           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
 
-      - name: Repo initialization and sync
+      # ------------------------
+      # Kernel repo caching
+      # ------------------------
+      - name: Cache Kernel repo
+        uses: actions/cache@v3
+        with:
+          path: kernel_build/.repo
+          key: kernel-repo-${{ github.sha }}
+          restore-keys: |
+            kernel-repo-
+
+      - name: Kernel repo initialization and sync
         run: |
           mkdir -p $GITHUB_WORKSPACE/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > $GITHUB_WORKSPACE/bin/repo
@@ -45,22 +56,22 @@ jobs:
           mkdir -p kernel_build
           cd kernel_build
 
-          # Non-interactive repo init
-          repo init -u https://android.googlesource.com/kernel/manifest \
-            -b common-android15-6.6 \
-            --depth=1 \
-            --quiet \
-            --no-repo-verify
+          # Non-interactive repo init (skip if already cached)
+          if [ ! -d ".repo" ]; then
+            repo init -u https://android.googlesource.com/kernel/manifest \
+              -b common-android15-6.6 \
+              --depth=1 --quiet --no-repo-verify
+          fi
 
-          # Non-interactive repo sync with timeout and retries
+          # Repo sync with timeout and retries
           MAX_RETRIES=3
           for i in $(seq 1 $MAX_RETRIES); do
-            echo "Repo sync attempt $i..."
+            echo "Kernel repo sync attempt $i..."
             if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync; then
-              echo "Repo sync completed successfully."
+              echo "Kernel repo sync completed successfully."
               break
             else
-              echo "Repo sync attempt $i failed or timed out."
+              echo "Attempt $i failed or timed out."
               if [ $i -eq $MAX_RETRIES ]; then
                 echo "Max retries reached. Exiting."
                 exit 1
@@ -68,27 +79,66 @@ jobs:
             fi
           done
 
-      - name: Copy required directories to root
-        run: |
-          cp -r build/ $GITHUB_WORKSPACE/
-          cp -r external/ $GITHUB_WORKSPACE/
-          cp -r prebuilts/ $GITHUB_WORKSPACE/
-          cp -r tools/ $GITHUB_WORKSPACE/
+      # ------------------------
+      # AOSP toolchain caching
+      # ------------------------
+      - name: Cache AOSP toolchain repo
+        uses: actions/cache@v3
+        with:
+          path: aosp/.repo
+          key: aosp-repo-${{ github.sha }}
+          restore-keys: |
+            aosp-repo-
 
+      - name: Sync AOSP toolchain directories
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/aosp
+          cd $GITHUB_WORKSPACE/aosp
+
+          # Minimal repo init (skip if cached)
+          if [ ! -d ".repo" ]; then
+            repo init -u https://android.googlesource.com/kernel/manifest \
+              -b common-android14-6.1 --depth=1 --quiet --no-repo-verify
+          fi
+
+          # Repo sync with timeout and retries
+          MAX_RETRIES=3
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Toolchain repo sync attempt $i..."
+            if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync; then
+              echo "Toolchain repo sync completed successfully."
+              break
+            else
+              echo "Attempt $i failed or timed out."
+              if [ $i -eq $MAX_RETRIES ]; then
+                echo "Max retries reached. Exiting."
+                exit 1
+              fi
+            fi
+          done
+
+          # Copy required directories to workspace root
+          for dir in build external prebuilts tools; do
+            if [ -d "$GITHUB_WORKSPACE/aosp/$dir" ]; then
+              cp -r "$GITHUB_WORKSPACE/aosp/$dir" $GITHUB_WORKSPACE/
+            else
+              echo "Directory $dir not found in AOSP repo, skipping..."
+            fi
+          done
+
+      # ------------------------
+      # Build environment setup
+      # ------------------------
       - name: Set Build Environment and Export Target Config
         run: |
-          # Export environment variables for kernel build
           export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
           export BUILD_CONFIG="../out/target/product/a06/obj/KERNEL_OBJ/build.config"
           export OUT_DIR="../out/target/product/a06/obj/KLEAF_OBJ"
           export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist"
           export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
           export PROJECT="mgk_64_k66"
-          
-          # Dynamically use GitHub Actions runner name as MODE
           export MODE="${GITHUB_RUNNER_NAME}"
 
-          # Generate build config
           cd kernel
           python $DEVICE_MODULES_DIR/scripts/gen_build_config.py \
             --kernel-defconfig mediatek-bazel_defconfig \
@@ -97,13 +147,13 @@ jobs:
             -m $MODE \
             -o $BUILD_CONFIG
 
+      # ------------------------
+      # Build kernel
+      # ------------------------
       - name: Build Kernel
         run: |
           cd kernel
-          # Source build config for overrides
           source $BUILD_CONFIG
-
-          # Run the final build script
           ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
