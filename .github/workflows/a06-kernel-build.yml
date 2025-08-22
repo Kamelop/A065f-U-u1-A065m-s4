@@ -60,19 +60,6 @@ jobs:
             kernel-repo-
 
       # ------------------------
-      # Cache Toolchains
-      # ------------------------
-      - name: Cache Toolchains
-        uses: actions/cache@v3
-        with:
-          path: |
-            $GITHUB_WORKSPACE/toolchains/clang
-            $GITHUB_WORKSPACE/toolchains/gnu
-          key: toolchains-${{ github.ref }}
-          restore-keys: |
-            toolchains-
-
-      # ------------------------
       # Kernel repo initialization and sync
       # ------------------------
       - name: Kernel repo initialization and sync
@@ -131,6 +118,19 @@ jobs:
           git clone --depth=1 https://github.com/rsuntk/toolchains.git -b gcc-6.4 gnu
 
       # ------------------------
+      # Cache Toolchains after fetch
+      # ------------------------
+      - name: Cache Toolchains
+        uses: actions/cache@v3
+        with:
+          path: |
+            $GITHUB_WORKSPACE/toolchains/clang
+            $GITHUB_WORKSPACE/toolchains/gnu
+          key: toolchains-${{ github.ref }}
+          restore-keys: |
+            toolchains-
+
+      # ------------------------
       # Build environment setup
       # ------------------------
       - name: Set Build Environment and Export Target Config
@@ -159,7 +159,6 @@ jobs:
       - name: Build Kernel
         run: |
           cd kernel
-          source $BUILD_CONFIG
           ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
