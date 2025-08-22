@@ -85,7 +85,7 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/toolchains
           cd $GITHUB_WORKSPACE/toolchains
 
-          # Use Clang 18 by default
+          # Clang 18 by default
           if [ ! -d "$CLANG_DIR" ]; then
             echo "Fetching Clang 18..."
             mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
@@ -111,20 +111,37 @@ jobs:
 
       - name: Set Build Environment and Export Target Config
         run: |
-         cd kernel 
-         python kernel_device_modules-6.6/scripts/gen_build_config.py --kernel-defconfig mediatek-bazel_defconfig --kernel-defconfig-overlays "mt6768_overlay.config o8.config" --kernel-build-config-overlays "" -m user -o ../out/target/product/a06/obj/KERNEL_OBJ/build.config
-         export DEVICE_MODULES_DIR="kernel_device_modules-6.6" 
-         export BUILD_CONFIG="../out/target/product/a06/obj/KERNEL_OBJ/build.config" 
-         export OUT_DIR="../out/target/product/a06/obj/KLEAF_OBJ" 
-         export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist" 
-         export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config" 
-         export PROJECT="mgk_64_k66" 
-         export MODE="${GITHUB_ACTOR}"
+          export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
+          export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
+          export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
+          export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
+          export PROJECT="mgk_64_k66"
+          export MODE="${GITHUB_ACTOR:-ci}"
+
+          # Make sure output directories exist
+          mkdir -p "$OUT_DIR" "$DIST_DIR"
+
+          cd kernel
+          python $DEVICE_MODULES_DIR/scripts/gen_build_config.py \
+            --kernel-defconfig mediatek-bazel_defconfig \
+            --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
+            --kernel-build-config-overlays "" \
+            -m "$MODE" \
+            -o "$OUT_DIR/build.config"
+
+          export BUILD_CONFIG="$OUT_DIR/build.config"
 
       - name: Build Kernel
         run: |
-           cd kernel
-           ./kernel_device_modules-6.6/build.sh
+          cd kernel
+          if [ -f "$BUILD_CONFIG" ]; then
+              source "$BUILD_CONFIG"
+          else
+              echo "Error: build config not found at $BUILD_CONFIG"
+              exit 1
+          fi
+
+          ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
         run: |
