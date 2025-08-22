@@ -13,6 +13,12 @@ jobs:
     env:
       CLANG_DIR: toolchains/clang
       GCC_DIR: toolchains/gnu
+      DEVICE_MODULES_DIR: kernel_device_modules-6.6
+      OUT_DIR: ${{ github.workspace }}/out/target/product/a06/obj/KLEAF_OBJ
+      DIST_DIR: ${{ github.workspace }}/out/target/product/a06/obj/KLEAF_OBJ/dist
+      DEFCONFIG_OVERLAYS: "mt6768_overlay.config o8.config"
+      PROJECT: "mgk_64_k66"
+      MODE: "${{ github.actor }}"
 
     steps:
       - name: Checkout repository
@@ -51,34 +57,11 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
           mkdir -p kernel_build
           cd kernel_build
-
           if [ ! -d ".repo" ]; then
             repo init -u https://android.googlesource.com/kernel/manifest \
               -b common-android15-6.6 --depth=1 --quiet --no-repo-verify
           fi
-
-          MAX_RETRIES=3
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Kernel repo sync attempt $i..."
-            if timeout 15m repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync || true; then
-              echo "Kernel repo sync completed successfully."
-              break
-            else
-              echo "Attempt $i failed or timed out."
-              if [ $i -eq $MAX_RETRIES ]; then
-                echo "Max retries reached. Exiting."
-                exit 1
-              fi
-            fi
-          done
-
-      - name: Cache Kernel repo after fetch
-        uses: actions/cache@v4
-        with:
-          path: kernel_build/.repo
-          key: kernel-repo-${{ github.ref }}
-          restore-keys: |
-            kernel-repo-
+          repo sync -j$(nproc) --no-clone-bundle --quiet --force-sync
 
       - name: Fetch toolchains
         run: |
@@ -87,60 +70,51 @@ jobs:
 
           # Clang 18 by default
           if [ ! -d "$CLANG_DIR" ]; then
-            echo "Fetching Clang 18..."
-            mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
+            mkdir -p "$CLANG_DIR"
+            cd "$CLANG_DIR"
             wget -q -O clang18.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
             tar -xf clang18.tar.gz
             rm clang18.tar.gz
             cd ..
           fi
 
+          # GCC 6.4
           if [ ! -d "$GCC_DIR" ]; then
             git clone --depth=1 https://github.com/rsuntk/toolchains.git -b gcc-6.4 "$GCC_DIR"
           fi
 
-      - name: Cache Toolchains
-        uses: actions/cache@v3
-        with:
-          path: |
-            $CLANG_DIR
-            $GCC_DIR
-          key: toolchains-${{ github.ref }}
-          restore-keys: |
-            toolchains-
-
-      - name: Set Build Environment and Export Target Config
+      - name: Ensure output directories
         run: |
-          export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export OUT_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ"
-          export DIST_DIR="$GITHUB_WORKSPACE/out/target/product/a06/obj/KLEAF_OBJ/dist"
-          export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
-          export PROJECT="mgk_64_k66"
-          export MODE="${GITHUB_ACTOR:-ci}"
-
-          # Make sure output directories exist
           mkdir -p "$OUT_DIR" "$DIST_DIR"
 
+      - name: Generate build.config with debug
+        run: |
           cd kernel
+          BUILD_CONFIG="$GITHUB_WORKSPACE/kernel/build.config"
           python $DEVICE_MODULES_DIR/scripts/gen_build_config.py \
             --kernel-defconfig mediatek-bazel_defconfig \
             --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
             --kernel-build-config-overlays "" \
             -m "$MODE" \
-            -o "$OUT_DIR/build.config"
+            -o "$BUILD_CONFIG"
 
-          export BUILD_CONFIG="$OUT_DIR/build.config"
+          echo "Checking build.config existence..."
+          if [ -f "$BUILD_CONFIG" ]; then
+            echo "✅ build.config successfully created at $BUILD_CONFIG"
+          else
+            echo "❌ Error: build.config was not created at $BUILD_CONFIG"
+            echo "Listing kernel_device_modules-6.6/scripts contents:"
+            ls -l $DEVICE_MODULES_DIR/scripts
+            echo "Listing kernel directory contents:"
+            ls -l .
+            exit 1
+          fi
+          echo "BUILD_CONFIG=$BUILD_CONFIG" >> $GITHUB_ENV
 
       - name: Build Kernel
         run: |
           cd kernel
-          if [ -f "$BUILD_CONFIG" ]; then
-              source "$BUILD_CONFIG"
-          else
-              echo "Error: build config not found at $BUILD_CONFIG"
-              exit 1
-          fi
-
+          source "$BUILD_CONFIG"
           ./kernel_device_modules-6.6/build.sh
 
       - name: Show ccache stats
