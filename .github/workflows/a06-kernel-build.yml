@@ -3,14 +3,11 @@ name: A06 Kernel Build
 on:
   workflow_dispatch:
     inputs:
-      CLANG_EIGHTEEN:
-        description: 'Use Clang 18 instead of Clang 12'
+      USE_CLANG_18:
+        description: 'Check to use Clang 18 instead of Clang 12'
         required: false
-        default: 'false'
-  push:
-    branches:
-      - main
-  pull_request:
+        default: false
+        type: boolean
 
 jobs:
   build:
@@ -52,16 +49,32 @@ jobs:
           echo "PATH=$GITHUB_WORKSPACE/bin:$PATH" >> $GITHUB_ENV
 
       # ------------------------
-      # Kernel repo caching
+      # Cache Kernel repo
       # ------------------------
       - name: Cache Kernel repo
         uses: actions/cache@v3
         with:
           path: kernel_build/.repo
-          key: kernel-repo-${{ github.ref_name }}
+          key: kernel-repo-${{ github.ref }}
           restore-keys: |
             kernel-repo-
 
+      # ------------------------
+      # Cache Toolchains
+      # ------------------------
+      - name: Cache Toolchains
+        uses: actions/cache@v3
+        with:
+          path: |
+            $GITHUB_WORKSPACE/toolchains/clang
+            $GITHUB_WORKSPACE/toolchains/gnu
+          key: toolchains-${{ github.ref }}
+          restore-keys: |
+            toolchains-
+
+      # ------------------------
+      # Kernel repo initialization and sync
+      # ------------------------
       - name: Kernel repo initialization and sync
         run: |
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
@@ -99,16 +112,18 @@ jobs:
           cd $GITHUB_WORKSPACE/toolchains
 
           # CLANG
-          if [[ "${{ github.event.inputs.CLANG_EIGHTEEN }}" != "true" ]]; then
-            [ -d clang ] && rm -rf clang
-            git clone --depth=1 https://github.com/rsuntk/toolchains.git -b clang-12 clang
-          else
+          if [ "${{ github.event.inputs.USE_CLANG_18 }}" = "true" ]; then
+            echo "Fetching Clang 18..."
             [ -d clang ] && rm -rf clang
             mkdir clang && cd clang
             wget -q -O clang18.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
             tar -xf clang18.tar.gz
             rm clang18.tar.gz
             cd ..
+          else
+            echo "Fetching Clang 12..."
+            [ -d clang ] && rm -rf clang
+            git clone --depth=1 https://github.com/rsuntk/toolchains.git -b clang-12 clang
           fi
 
           # GCC
@@ -126,15 +141,17 @@ jobs:
           export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist"
           export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
           export PROJECT="mgk_64_k66"
-          export MODE="${GITHUB_RUNNER_NAME}"
+
+          # Ensure MODE is always valid
+          export MODE="${GITHUB_RUNNER_NAME:-ci}"
 
           cd kernel
           python $DEVICE_MODULES_DIR/scripts/gen_build_config.py \
             --kernel-defconfig mediatek-bazel_defconfig \
             --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
             --kernel-build-config-overlays "" \
-            -m $MODE \
-            -o $BUILD_CONFIG
+            -m "$MODE" \
+            -o "$BUILD_CONFIG"
 
       # ------------------------
       # Build kernel
