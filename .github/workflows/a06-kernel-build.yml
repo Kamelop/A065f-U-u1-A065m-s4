@@ -35,7 +35,7 @@ jobs:
           ccache --max-size=10G
           echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> $GITHUB_ENV
 
-       - name: Install latest repo tool and initialize kernel repo
+     - name: Install latest repo tool and initialize kernel repo
         run: |
           # Install latest repo locally
           mkdir -p $GITHUB_WORKSPACE/bin
