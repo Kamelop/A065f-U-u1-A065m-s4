@@ -1,0 +1,69 @@
+# .github/workflows/build.yml
+name: Android Kernel Build
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies and repo tool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git python3 curl build-essential bc bison flex libssl-dev
+
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
+          chmod a+x ~/repo
+          sudo mv ~/repo /usr/local/bin/
+
+      - name: Initialize repo
+        run: |
+          repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1
+
+      - name: Sync sources
+        run: |
+          repo sync -j$(nproc)
+
+      - name: Set build environment
+        run: |
+          cd kernel
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export PATH=$PATH:/usr/bin
+          export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
+          export BUILD_CONFIG="../out/target/product/a06/obj/KERNEL_OBJ/build.config"
+          export OUT_DIR="../out/target/product/a06/obj/KLEAF_OBJ"
+          export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist"
+          export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
+          export PROJECT="mgk_64_k66"
+          export MODE="user"
+          echo "Environment variables set"
+
+      - name: Generate build config
+        run: |
+          cd kernel
+          python3 kernel_device_modules-6.6/scripts/gen_build_config.py \
+            --kernel-defconfig mediatek-bazel_defconfig \
+            --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
+            --kernel-build-config-overlays "" \
+            -m "$MODE" \
+            -o "$BUILD_CONFIG"
+
+      - name: Build kernel
+        run: |
+          cd kernel
+          ./kernel_device_modules-6.6/build.sh
+
+      - name: Upload kernel image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-image
+          path: out/target/product/a06/obj/KLEAF_OBJ/dist/kernel_device_modules-6.6/mgk_64_k66_kernel_aarch64.user/Image.gz
