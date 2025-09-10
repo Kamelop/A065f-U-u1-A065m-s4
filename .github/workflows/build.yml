@@ -47,34 +47,12 @@ jobs:
           fi
           repo sync -j$(nproc)
 
-      # 5. Generate build config with merged environment
-      - name: Generate build config
-        run: |
-          cd kernel
-          # Export all required environment variables
-          export DEVICE_MODULES_DIR="kernel_device_modules-6.6"
-          export BUILD_CONFIG="../out/target/product/a06/obj/KERNEL_OBJ/build.config"
-          export OUT_DIR="../out/target/product/a06/obj/KLEAF_OBJ"
-          export DIST_DIR="../out/target/product/a06/obj/KLEAF_OBJ/dist"
-          export DEFCONFIG_OVERLAYS="mt6768_overlay.config o8.config"
-          export PROJECT="mgk_64_k66"
-          export MODE="user"
-
-          # Run generator
-          python3 kernel_device_modules-6.6/scripts/gen_build_config.py \
-            --kernel-defconfig mediatek-bazel_defconfig \
-            --kernel-defconfig-overlays "$DEFCONFIG_OVERLAYS" \
-            --kernel-build-config-overlays "" \
-            -m "$MODE" \
-            -o "$BUILD_CONFIG"
-
-      # 6. Build the kernel
+      # 5. Build the kernel
       - name: Build kernel
         run: |
-          cd kernel
-          ./kernel_device_modules-6.6/build.sh
+          ./build_kernel.sh
 
-      # 7. Upload kernel Image.gz
+      # 6. Upload kernel Image.gz
       - name: Upload kernel image
         uses: actions/upload-artifact@v4
         with:
